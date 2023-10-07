@@ -1,0 +1,4 @@
+nslookup
+dig
+dnsenum
+theHarvester

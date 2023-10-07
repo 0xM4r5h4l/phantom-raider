@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# Checking for root privs
+if [ "$EUID" -ne 0 ]; then
+	echo "Run it as sudo"
+	exit 1
+fi
+
+# Checking arguments
+if [ "$#" -ne 1 ]; then
+	echo "Usage: $0 <DOMAIN>\nEx: $0 google.com"
+	exit 1
+fi
+
+valid_domain_format() {
+	local domain="$1"
+	local format_regex="^([a-zA-Z0-9.-]+)$"
+	if [[ $domain =~ $format_regex ]]; then
+		if [ ${#domain} -lt 2 ] || [ ${#domain} -gt 257 ]; then
+			return 1
+		else		
+			return 0
+		fi
+	else
+		return 1
+	fi
+}
+
+# Identifying Variables
+domain="$1"
+scriptName="PhantomRaider"
+defaultPath="/usr/share/$scriptName"
+loot_folder="$defaultPath/loot"
+# Removing http, https from domain if exists
+pure_domain="${domain#http://}"
+pure_domain="${pure_domain#https://}"
+
+domain_folder="$loot_folder/$pure_domain"
+
+# Checking if domain valid
+if ! valid_domain_format "$pure_domain"; then
+	echo "Invalid domain format."
+	exit 1
+fi
+
+
+if [ ! -d "$defaultPath" ]; then
+	mkdir "$defaultPath"
+fi
+if [ ! -d "$loot_folder" ]; then
+	mkdir "$loot_folder"
+fi
+if [ ! -d "$domain_folder" ]; then
+	mkdir "$domain_folder"
+fi
+
+
+
+####################
+
+
+# nslookup for all domain records
+echo "+----=[ Running Nslookup ]=----+"
+nslookup -all $pure_domain | tee "$domain_folder/nslookup_result.txt"
+sleep 2
+
+
+# Dig
+echo "+----=[ Running Dig ]=----+"
+dig -t any "$pure_domain" | tee "$domain_folder/dig_result.txt"
+
+
+# Webanalyze
+echo "+----=[ Running Webanalyze ]=----+"
+"modules/webanalyze" -host "$pure_domain" -crawl 10 -silent -redirect | tee "$domain_folder/webanalyze_result.txt"
+
+
+# Dnsenum
+echo "+----=[ Running Dnsenum ]=----+"
+dnsenum --enum -v --threads 4 "$pure_domain" --noreverse -o "$domain_folder/dnsenum_result.txt"
+
+# Gau
+echo "+----=[ Running Gau ]=----+"
+echo "result will be in $domain_folder/gau_result.txt !"
+"modules/gau" --fc 404,302 --timeout 60 --subs "$pure_domain" --o "$domain_folder/gau_result.txt"
+
+# TheHarvester
+echo "+----=[ Running TheHarvester ]=----+"
+theHarvester -d "$pure_domain" -b all -l 500 -v -f "$domain_folder/theHarvester_result.xml"
